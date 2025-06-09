@@ -1,47 +1,40 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { Pool } from 'pg';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const dbDirectory = path.join(__dirname, '../db');
-
-// Helper function to create and configure a DB connection
-const createDbConnection = (dbFileName) => {
-  const dbPath = path.join(dbDirectory, dbFileName);
-  try {
-    const dbInstance = new Database(dbPath, { verbose: console.log });
-    dbInstance.pragma('foreign_keys = ON'); // Enable foreign keys for this connection
-    console.log(`Successfully connected to ${dbPath}`);
-    return dbInstance;
-  } catch (error) {
-    console.error(`Failed to connect to ${dbPath}:`, error);
-    // Depending on desired behavior, you might want to throw the error,
-    // or return null/undefined and handle it in the calling code.
-    // For now, re-throwing to make failures explicit during setup.
-    throw error;
-  }
+// Map logical DB names to Docker Compose service hostnames
+const dbHostMap = {
+  main_db: 'main-db',
+  travelschedule_db: 'travelschedule-db',
+  booking_db: 'booking-db',
+  travelhistory_db: 'travelhistory-db',
+  refundrequest_db: 'refundrequest-db',
+  recommendation_db: 'recommendation-db',
 };
+
+// Helper function to create a PostgreSQL pool
+function createPgPool({ database }) {
+  return new Pool({
+    host: process.env.PG_HOST || dbHostMap[database],
+    user: process.env.PG_USER || 'admin',
+    password: process.env.PG_PASSWORD || 'admin',
+    database: process.env.PG_DATABASE || database,
+    port: process.env.PG_PORT ? parseInt(process.env.PG_PORT) : 5432,
+  });
+}
 
 const dbs = {
-  mainDB: createDbConnection('main.db'),
-  travelScheduleDB: createDbConnection('travelschedule.db'),
-  bookingDB: createDbConnection('booking.db'),
-  travelHistoryDB: createDbConnection('travelhistory.db'),
-  refundRequestDB: createDbConnection('refundrequest.db'),
-  recommendationDB: createDbConnection('recommendation.db'),
+  mainDB: createPgPool({ database: 'main_db' }),
+  travelScheduleDB: createPgPool({ database: 'travelschedule_db' }),
+  bookingDB: createPgPool({ database: 'booking_db' }),
+  travelHistoryDB: createPgPool({ database: 'travelhistory_db' }),
+  refundRequestDB: createPgPool({ database: 'refundrequest_db' }),
+  recommendationDB: createPgPool({ database: 'recommendation_db' }),
 };
 
-// Optional: Add a graceful shutdown mechanism
-process.on('exit', () => {
-  console.log('Closing database connections...');
-  Object.values(dbs).forEach(db => {
-    if (db && db.open) {
-      db.close();
-    }
-  });
-  console.log('All database connections closed.');
+// Graceful shutdown for pools
+process.on('exit', async () => {
+  console.log('Closing PostgreSQL pools...');
+  await Promise.all(Object.values(dbs).map(pool => pool.end()));
+  console.log('All PostgreSQL pools closed.');
 });
 
 export default dbs;

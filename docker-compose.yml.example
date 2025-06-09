@@ -1,0 +1,148 @@
+version: '3.8'
+
+services:
+  main:
+    build: ./Main
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - main-db
+    networks:
+      - travel-network
+
+  travelschedule:
+    build: ./TravelSchedule
+    ports:
+      - "4001:4001"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - travelschedule-db
+    networks:
+      - travel-network
+
+  booking:
+    build: ./Booking
+    ports:
+      - "4002:4002"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - booking-db
+    networks:
+      - travel-network
+
+  travelhistory:
+    build: ./TravelHistory
+    ports:
+      - "4003:4003"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - travelhistory-db
+    networks:
+      - travel-network
+
+  refundrequest:
+    build: ./RefundRequest
+    ports:
+      - "4004:4004"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - refundrequest-db
+    networks:
+      - travel-network
+
+  recommendation:
+    build: ./Recommendation
+    ports:
+      - "4005:4005"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - recommendation-db
+    networks:
+      - travel-network
+
+  main-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: main_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    volumes:
+      - main-db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - travel-network
+
+  travelschedule-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: travelschedule_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    volumes:
+      - travelschedule-db-data:/var/lib/postgresql/data
+    networks:
+      - travel-network
+
+  booking-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: booking_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    volumes:
+      - booking-db-data:/var/lib/postgresql/data
+    networks:
+      - travel-network
+
+  travelhistory-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: travelhistory_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    volumes:
+      - travelhistory-db-data:/var/lib/postgresql/data
+    networks:
+      - travel-network
+
+  refundrequest-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: refundrequest_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    volumes:
+      - refundrequest-db-data:/var/lib/postgresql/data
+    networks:
+      - travel-network
+
+  recommendation-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: recommendation_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    volumes:
+      - recommendation-db-data:/var/lib/postgresql/data
+    networks:
+      - travel-network
+
+networks:
+  travel-network:
+    driver: bridge
+
+volumes:
+  main-db-data:
+  travelschedule-db-data:
+  booking-db-data:
+  travelhistory-db-data:
+  refundrequest-db-data:
+  recommendation-db-data:

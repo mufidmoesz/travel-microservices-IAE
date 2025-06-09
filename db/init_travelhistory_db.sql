@@ -1,8 +1,8 @@
-DROP TABLE IF EXISTS TravelHistory;
+DROP TABLE IF EXISTS "TravelHistory";
 
-CREATE TABLE TravelHistory (
+CREATE TABLE "TravelHistory" (
   id TEXT PRIMARY KEY,
-  userId TEXT NOT NULL, -- Was: FOREIGN KEY(userId) REFERENCES User(id)
+  passengerId TEXT NOT NULL, -- Was: FOREIGN KEY(passengerId) REFERENCES Passenger(id)
   scheduleId TEXT NOT NULL, -- Was: FOREIGN KEY(scheduleId) REFERENCES TravelSchedule(id)
   completedAt TEXT NOT NULL,
   rating REAL,

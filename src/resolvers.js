@@ -3,143 +3,157 @@ import dbs from './db.js'; // Changed to import dbs
 
 const resolvers = {
   Query: {
-    getAllSchedules: () => {
-      return dbs.travelScheduleDB.prepare('SELECT * FROM TravelSchedule').all();
+    getAllSchedules: async () => {
+      const { rows } = await dbs.travelScheduleDB.query('SELECT * FROM "TravelSchedule"');
+      return rows;
     },
 
-    getUserBookings: (_, { userId }) => {
-      return dbs.bookingDB.prepare('SELECT * FROM Booking WHERE userId = ?').all(userId);
+    getPassengerBookings: async (_, { passengerId }) => {
+      const { rows } = await dbs.bookingDB.query('SELECT * FROM "Booking" WHERE passengerId = $1', [passengerId]);
+      return rows;
     },
 
-    getUserHistory: (_, { userId }) => {
-      return dbs.travelHistoryDB.prepare('SELECT * FROM TravelHistory WHERE userId = ?').all(userId);
+    getPassengerHistory: async (_, { passengerId }) => {
+      const { rows } = await dbs.travelHistoryDB.query('SELECT * FROM "TravelHistory" WHERE passengerId = $1', [passengerId]);
+      return rows;
     },
 
-    getRecommendations: (_, { userId }) => {
-      // This query generates a new recommendation on the fly
-      const schedules = dbs.travelScheduleDB.prepare('SELECT * FROM TravelSchedule ORDER BY RANDOM() LIMIT 3').all(); // Get some random schedules
+    getRecommendations: async (_, { passengerId }) => {
+      const { rows: schedules } = await dbs.travelScheduleDB.query('SELECT * FROM "TravelSchedule" ORDER BY RANDOM() LIMIT 3');
       return {
         id: uuidv4(),
-        userId: userId, // Pass userId directly for the Recommendation.user resolver
-        recommendedSchedules: schedules, // Schedules are already resolved here
+        passengerId: passengerId,
+        recommendedSchedules: schedules,
         generatedAt: new Date().toISOString(),
       };
     },
 
-    getUsers: () => {
-      return dbs.mainDB.prepare('SELECT * FROM User').all();
+    getPassengers: async () => {
+      const { rows } = await dbs.mainDB.query('SELECT * FROM "Passenger"');
+      return rows;
     },
 
-    getAllBookings: () => {
-      return dbs.bookingDB.prepare('SELECT * FROM Booking').all();
+    getAllBookings: async () => {
+      const { rows } = await dbs.bookingDB.query('SELECT * FROM "Booking"');
+      return rows;
     },
 
-    getAllRefundRequests: () => {
-      return dbs.refundRequestDB.prepare('SELECT * FROM RefundRequest').all();
+    getAllRefundRequests: async () => {
+      const { rows } = await dbs.refundRequestDB.query('SELECT * FROM "RefundRequest"');
+      return rows;
     },
 
-    getAllTravelHistories: () => {
-      return dbs.travelHistoryDB.prepare('SELECT * FROM TravelHistory').all();
+    getAllTravelHistories: async () => {
+      const { rows } = await dbs.travelHistoryDB.query('SELECT * FROM "TravelHistory"');
+      return rows;
     },
 
-    getAllRecommendations: () => {
-      // This fetches stored recommendations. The Recommendation type resolver will handle fetching user and schedules.
-      return dbs.recommendationDB.prepare('SELECT * FROM Recommendation').all();
+    getAllRecommendations: async () => {
+      const { rows } = await dbs.recommendationDB.query('SELECT * FROM "Recommendation"');
+      return rows;
     },
   },
 
   Mutation: {
-    createBooking: (_, { userId, scheduleId }) => {
+    createBooking: async (_, { passengerId, scheduleId }) => {
       const id = uuidv4();
       const bookingTime = new Date().toISOString();
       const status = 'CONFIRMED';
-
-      dbs.bookingDB.prepare(
-        'INSERT INTO Booking (id, userId, scheduleId, bookingTime, status) VALUES (?, ?, ?, ?, ?)'
-      ).run(id, userId, scheduleId, bookingTime, status);
-      
-      // Return structure that Booking type resolvers can use
-      return { id, userId, scheduleId, bookingTime, status };
+      await dbs.bookingDB.query(
+        'INSERT INTO "Booking" (id, passengerId, scheduleId, bookingTime, status) VALUES ($1, $2, $3, $4, $5)',
+        [id, passengerId, scheduleId, bookingTime, status]
+      );
+      return { id, passengerId, scheduleId, bookingTime, status };
     },
 
-    cancelBooking: (_, { bookingId }) => {
-      dbs.bookingDB.prepare('UPDATE Booking SET status = ? WHERE id = ?').run('CANCELLED', bookingId);
-      const booking = dbs.bookingDB.prepare('SELECT * FROM Booking WHERE id = ?').get(bookingId);
-      return booking;
+    cancelBooking: async (_, { bookingId }) => {
+      await dbs.bookingDB.query('UPDATE "Booking" SET status = $1 WHERE id = $2', ['CANCELLED', bookingId]);
+      const { rows } = await dbs.bookingDB.query('SELECT * FROM "Booking" WHERE id = $1', [bookingId]);
+      return rows[0];
     },
 
-    requestRefund: (_, { bookingId, reason }) => {
+    requestRefund: async (_, { bookingId, reason }) => {
       const id = uuidv4();
       const requestedAt = new Date().toISOString();
       const status = 'PENDING';
 
-      dbs.refundRequestDB.prepare(
-        'INSERT INTO RefundRequest (id, bookingId, reason, status, requestedAt) VALUES (?, ?, ?, ?, ?)'
-      ).run(id, bookingId, reason, status, requestedAt);
+      await dbs.refundRequestDB.query(
+        'INSERT INTO "RefundRequest" (id, bookingId, reason, status, requestedAt) VALUES ($1, $2, $3, $4, $5)',
+        [id, bookingId, reason, status, requestedAt]
+      );
 
       // Return structure that RefundRequest type resolvers can use
       return { id, bookingId, reason, status, requestedAt };
     },
 
-    rateTravel: (_, { historyId, rating, review }) => {
-      dbs.travelHistoryDB.prepare(
-        'UPDATE TravelHistory SET rating = ?, review = ? WHERE id = ?'
-      ).run(rating, review, historyId);
-
-      return dbs.travelHistoryDB.prepare('SELECT * FROM TravelHistory WHERE id = ?').get(historyId);
+    rateTravel: async (_, { historyId, rating, review }) => {
+      await dbs.travelHistoryDB.query(
+        'UPDATE "TravelHistory" SET rating = $1, review = $2 WHERE id = $3',
+        [rating, review, historyId]
+      );
+      const { rows } = await dbs.travelHistoryDB.query('SELECT * FROM "TravelHistory" WHERE id = $1', [historyId]);
+      return rows[0];
     },
   },
 
   Booking: {
-    user: (booking) => dbs.mainDB.prepare('SELECT * FROM User WHERE id = ?').get(booking.userId),
-    schedule: (booking) => dbs.travelScheduleDB.prepare('SELECT * FROM TravelSchedule WHERE id = ?').get(booking.scheduleId),
+    passenger: async (booking) => {
+      const { rows } = await dbs.mainDB.query('SELECT * FROM "Passenger" WHERE id = $1', [booking.passengerId]);
+      return rows[0];
+    },
+    schedule: async (booking) => {
+      const { rows } = await dbs.travelScheduleDB.query('SELECT * FROM "TravelSchedule" WHERE id = $1', [booking.scheduleId]);
+      return rows[0];
+    },
   },
 
   TravelHistory: {
-    user: (history) => dbs.mainDB.prepare('SELECT * FROM User WHERE id = ?').get(history.userId),
-    schedule: (history) => dbs.travelScheduleDB.prepare('SELECT * FROM TravelSchedule WHERE id = ?').get(history.scheduleId),
+    passenger: async (history) => {
+      const { rows } = await dbs.mainDB.query('SELECT * FROM "Passenger" WHERE id = $1', [history.passengerId]);
+      return rows[0];
+    },
+    schedule: async (history) => {
+      const { rows } = await dbs.travelScheduleDB.query('SELECT * FROM "TravelSchedule" WHERE id = $1', [history.scheduleId]);
+      return rows[0];
+    },
   },
 
   RefundRequest: {
-    booking: (refund) => dbs.bookingDB.prepare('SELECT * FROM Booking WHERE id = ?').get(refund.bookingId),
+    booking: async (refund) => {
+      const { rows } = await dbs.bookingDB.query('SELECT * FROM "Booking" WHERE id = $1', [refund.bookingId]);
+      return rows[0];
+    },
   },
 
   Recommendation: {
-    // Resolver for the 'user' field of a Recommendation object
-    user: (rec) => {
-      // rec.userId comes from the Recommendation table or from the getRecommendations query result
-      return dbs.mainDB.prepare('SELECT * FROM User WHERE id = ?').get(rec.userId);
+    // Resolver for the 'passenger' field of a Recommendation object
+    passenger: async (rec) => {
+      const { rows } = await dbs.mainDB.query('SELECT * FROM "Passenger" WHERE id = $1', [rec.passengerId]);
+      return rows[0];
     },
     // Resolver for the 'recommendedSchedules' field of a Recommendation object
-    recommendedSchedules: (rec) => {
-      // If rec.recommendedSchedules is already an array of objects (e.g., from getRecommendations query),
-      // GraphQL will use it directly. This resolver is for when it's a string from the DB (e.g. from getAllRecommendations).
+    recommendedSchedules: async (rec) => {
       if (Array.isArray(rec.recommendedSchedules) && rec.recommendedSchedules.length > 0 && typeof rec.recommendedSchedules[0] === 'object') {
         return rec.recommendedSchedules;
       }
-
       if (typeof rec.recommendedSchedules !== 'string') {
-        console.warn('Recommendation.recommendedSchedules expected a string of schedule IDs but received:', rec.recommendedSchedules);
         return [];
       }
-
       try {
         const scheduleIds = JSON.parse(rec.recommendedSchedules);
         if (!Array.isArray(scheduleIds) || scheduleIds.length === 0) {
           return [];
         }
-        // Ensure IDs are strings, as they are TEXT in the DB
         const stringScheduleIds = scheduleIds.map(id => String(id));
-        const placeholders = stringScheduleIds.map(() => '?').join(',');
-        const stmt = dbs.travelScheduleDB.prepare(`SELECT * FROM TravelSchedule WHERE id IN (${placeholders})`);
-        return stmt.all(...stringScheduleIds);
+        const placeholders = stringScheduleIds.map((_, i) => `$${i + 1}`).join(',');
+        const { rows } = await dbs.travelScheduleDB.query(`SELECT * FROM "TravelSchedule" WHERE id IN (${placeholders})`, stringScheduleIds);
+        return rows;
       } catch (e) {
         console.error(`Error parsing or fetching recommendedSchedules for Recommendation.id ${rec.id}: ${rec.recommendedSchedules}`, e);
-        return []; 
+        return [];
       }
     },
   },
 };
 
 export default resolvers;
-

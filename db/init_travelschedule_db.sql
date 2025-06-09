@@ -1,6 +1,6 @@
-DROP TABLE IF EXISTS TravelSchedule;
+DROP TABLE IF EXISTS "TravelSchedule";
 
-CREATE TABLE TravelSchedule (
+CREATE TABLE "TravelSchedule" (
   id TEXT PRIMARY KEY,
   origin TEXT NOT NULL,
   destination TEXT NOT NULL,

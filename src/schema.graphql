@@ -11,7 +11,7 @@ type TravelSchedule {
 }
 
 # Pengguna
-type User {
+type Passenger {
   id: ID!
   name: String!
   email: String!
@@ -22,7 +22,7 @@ type User {
 # Pemesanan Travel
 type Booking {
   id: ID!
-  user: User!
+  passenger: Passenger!
   schedule: TravelSchedule!
   bookingTime: String!
   status: BookingStatus!
@@ -37,7 +37,7 @@ enum BookingStatus {
 # Riwayat Perjalanan (sumber dari booking yang sudah selesai)
 type TravelHistory {
   id: ID!
-  user: User!
+  passenger: Passenger!
   schedule: TravelSchedule!
   completedAt: String!
   rating: Float
@@ -63,7 +63,7 @@ enum RefundStatus {
 # Rekomendasi berdasarkan histori dan preferensi
 type Recommendation {
   id: ID!
-  user: User!
+  passenger: Passenger!
   recommendedSchedules: [TravelSchedule]!
   generatedAt: String!
 }
@@ -71,10 +71,10 @@ type Recommendation {
 # Query: Ambil data
 type Query {
   getAllSchedules: [TravelSchedule]
-  getUserBookings(userId: ID!): [Booking]
-  getUserHistory(userId: ID!): [TravelHistory]
-  getRecommendations(userId: ID!): Recommendation
-  getUsers: [User]
+  getPassengerBookings(passengerId: ID!): [Booking]
+  getPassengerHistory(passengerId: ID!): [TravelHistory]
+  getRecommendations(passengerId: ID!): Recommendation
+  getPassengers: [Passenger]
   getAllBookings: [Booking]
   getAllRefundRequests: [RefundRequest]
   getAllTravelHistories: [TravelHistory]
@@ -83,7 +83,7 @@ type Query {
 
 # Mutation: Ubah data
 type Mutation {
-  createBooking(userId: ID!, scheduleId: ID!): Booking
+  createBooking(passengerId: ID!, scheduleId: ID!): Booking
   cancelBooking(bookingId: ID!): Booking
   requestRefund(bookingId: ID!, reason: String!): RefundRequest
   rateTravel(historyId: ID!, rating: Float!, review: String): TravelHistory

@@ -1,9 +1,12 @@
 import { ApolloServer } from '@apollo/server';
-import { startStandaloneServer } from '@apollo/server/standalone';
-import { readFileSync } from 'fs';
-import { dirname, join } from 'path';
+import express from 'express';
+import { expressMiddleware } from '@apollo/server/express4';
+import http from 'http';
+import cors from 'cors';
 import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import db from './db.js';
+import { readFileSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -11,17 +14,46 @@ const __dirname = dirname(__filename);
 const typeDefs = readFileSync(join(__dirname, './schema.graphql'), 'utf8');
 import resolvers from './resolvers.js';
 
-async function startServer() {
-  const server = new ApolloServer({
+const app = express();
+const httpServer = http.createServer(app);
+
+const server = new ApolloServer({
     typeDefs,
     resolvers,
-  });
+    introspection: true,
+    plugins: [
+        {
+            async serverWillStart() {
+                return {
+                    async drainServer() {
+                        await httpServer.close();
+                    },
+                };
+            },
+        },
+    ],
+});
 
-  const { url } = await startStandaloneServer(server, {
-    listen: { port: 4000 },
-  });
+await server.start();
 
-  console.log(`🚀 Server ready at ${url}`);
-}
+app.use(
+    '/graphql',
+    cors(),
+    express.json(),
+    expressMiddleware(server, {
+        context: async ({ req }) => ({ token: req.headers.token }),
+    }),
+);
 
-startServer();
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'healthy' });
+});
+
+const PORT = process.env.PORT || 4000;
+const serverUrl = `http://localhost:${PORT}`;
+
+httpServer.listen(PORT, () => {
+    console.log(`🚀 Server ready at ${serverUrl}`);
+    console.log(`🚀 GraphQL endpoint: ${serverUrl}/graphql`);
+    console.log(`🚀 Health check endpoint: ${serverUrl}/health`);
+});

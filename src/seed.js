@@ -3,21 +3,15 @@ import dbs from './db.js'; // Changed to import dbs
 import { formatISO } from 'date-fns';
 
 // Clear existing data
-function clearTables() {
+async function clearTables() {
   console.log('Clearing tables...');
   try {
-    dbs.refundRequestDB.prepare(`DELETE FROM RefundRequest`).run();
-    console.log('RefundRequest table cleared');
-    dbs.travelHistoryDB.prepare(`DELETE FROM TravelHistory`).run();
-    console.log('TravelHistory table cleared');
-    dbs.bookingDB.prepare(`DELETE FROM Booking`).run();
-    console.log('Booking table cleared');
-    dbs.travelScheduleDB.prepare(`DELETE FROM TravelSchedule`).run();
-    console.log('TravelSchedule table cleared');
-    dbs.recommendationDB.prepare(`DELETE FROM Recommendation`).run();
-    console.log('Recommendation table cleared');
-    dbs.mainDB.prepare(`DELETE FROM User`).run();
-    console.log('User table cleared');
+    await dbs.refundRequestDB.query('DELETE FROM "RefundRequest"');
+    await dbs.travelHistoryDB.query('DELETE FROM "TravelHistory"');
+    await dbs.bookingDB.query('DELETE FROM "Booking"');
+    await dbs.travelScheduleDB.query('DELETE FROM "TravelSchedule"');
+    await dbs.recommendationDB.query('DELETE FROM "Recommendation"');
+    await dbs.mainDB.query('DELETE FROM "Passenger"');
     console.log('All tables cleared successfully.');
   } catch (error) {
     console.error('Error clearing tables:', error);
@@ -35,29 +29,27 @@ function formatDate(date) {
   return formatISO(date);
 }
 
-// Create users
-function seedUsers() {
-  const users = [
+// Create passengers
+async function seedPassengers() {
+  const passengers = [
     { id: randomUUID(), name: 'John Doe', email: 'john@example.com' },
     { id: randomUUID(), name: 'Jane Smith', email: 'jane@example.com' },
     { id: randomUUID(), name: 'Bob Johnson', email: 'bob@example.com' },
     { id: randomUUID(), name: 'Alice Brown', email: 'alice@example.com' },
     { id: randomUUID(), name: 'Charlie Wilson', email: 'charlie@example.com' }
   ];
-  
-  const insert = dbs.mainDB.prepare('INSERT INTO User (id, name, email) VALUES (?, ?, ?)');
-  dbs.mainDB.transaction(() => {
-    users.forEach(user => {
-      insert.run(user.id, user.name, user.email);
-    });
-  })();
-  
-  console.log(`${users.length} users created in mainDB`);
-  return users;
+
+  const insertPassengerQuery = 'INSERT INTO "Passenger" (id, name, email) VALUES ($1, $2, $3)';
+  for (const passenger of passengers) {
+    await dbs.mainDB.query(insertPassengerQuery, [passenger.id, passenger.name, passenger.email]);
+  }
+
+  console.log(`${passengers.length} passengers created in mainDB`);
+  return passengers;
 }
 
 // Create travel schedules
-function seedTravelSchedules() {
+async function seedTravelSchedules() {
   const routes = [
     { origin: 'Jakarta', destination: 'Bandung' },
     { origin: 'Jakarta', destination: 'Bogor' },
@@ -96,28 +88,21 @@ function seedTravelSchedules() {
     }
   });
   
-  const insert = dbs.travelScheduleDB.prepare(
-    'INSERT INTO TravelSchedule (id, origin, destination, departureTime, arrivalTime, price, seatsAvailable, vehicleType) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-  );
-  dbs.travelScheduleDB.transaction(() => {
-    schedules.forEach(schedule => {
-      insert.run(
-        schedule.id, schedule.origin, schedule.destination, schedule.departureTime,
-        schedule.arrivalTime, schedule.price, schedule.seatsAvailable, schedule.vehicleType
-      );
-    });
-  })();
+  const insertScheduleQuery = 'INSERT INTO "TravelSchedule" (id, origin, destination, departureTime, arrivalTime, price, seatsAvailable, vehicleType) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)';
+  for (const schedule of schedules) {
+    await dbs.travelScheduleDB.query(insertScheduleQuery, [schedule.id, schedule.origin, schedule.destination, schedule.departureTime, schedule.arrivalTime, schedule.price, schedule.seatsAvailable, schedule.vehicleType]);
+  }
   
   console.log(`${schedules.length} travel schedules created in travelScheduleDB`);
   return schedules;
 }
 
 // Create bookings
-function seedBookings(users, schedules) {
+async function seedBookings(passengers, schedules) {
   const bookings = [];
   const statuses = ['CONFIRMED', 'CANCELLED', 'REFUNDED'];
   
-  users.forEach(user => {
+  passengers.forEach(passenger => {
     const bookingCount = 1 + Math.floor(Math.random() * 3);
     for (let i = 0; i < bookingCount; i++) {
       const schedule = schedules[Math.floor(Math.random() * schedules.length)];
@@ -126,7 +111,7 @@ function seedBookings(users, schedules) {
       oneMonthAgo.setMonth(now.getMonth() - 1);
       bookings.push({
         id: randomUUID(),
-        userId: user.id,
+        passengerId: passenger.id,
         scheduleId: schedule.id,
         bookingTime: formatDate(randomDate(oneMonthAgo, now)),
         status: statuses[Math.floor(Math.random() * statuses.length)]
@@ -134,21 +119,17 @@ function seedBookings(users, schedules) {
     }
   });
   
-  const insert = dbs.bookingDB.prepare(
-    'INSERT INTO Booking (id, userId, scheduleId, bookingTime, status) VALUES (?, ?, ?, ?, ?)'
-  );
-  dbs.bookingDB.transaction(() => {
-    bookings.forEach(booking => {
-      insert.run(booking.id, booking.userId, booking.scheduleId, booking.bookingTime, booking.status);
-    });
-  })();
+  const insertBookingQuery = 'INSERT INTO "Booking" (id, passengerId, scheduleId, bookingTime, status) VALUES ($1, $2, $3, $4, $5)';
+  for (const booking of bookings) {
+    await dbs.bookingDB.query(insertBookingQuery, [booking.id, booking.passengerId, booking.scheduleId, booking.bookingTime, booking.status]);
+  }
   
   console.log(`${bookings.length} bookings created in bookingDB`);
   return bookings;
 }
 
 // Create travel history
-function seedTravelHistory(users, schedules) {
+async function seedTravelHistory(passengers, schedules) {
   const histories = [];
   const ratings = [4.0, 4.5, 5.0, 3.5, 4.2, 3.0, 5.0];
   const reviews = [
@@ -157,40 +138,37 @@ function seedTravelHistory(users, schedules) {
     "Very clean vehicle and friendly driver.", null
   ];
   
-  users.forEach(user => {
+  passengers.forEach(passenger => {
     const historyCount = Math.floor(Math.random() * 3);
     for (let i = 0; i < historyCount; i++) {
       const schedule = schedules[Math.floor(Math.random() * schedules.length)];
       const now = new Date();
       const threeMonthsAgo = new Date(now);
       threeMonthsAgo.setMonth(now.getMonth() - 3);
+      const completedAt = formatDate(randomDate(threeMonthsAgo, now));
       const hasRating = Math.random() > 0.3;
       histories.push({
         id: randomUUID(),
-        userId: user.id,
+        passengerId: passenger.id,
         scheduleId: schedule.id,
-        completedAt: formatDate(randomDate(threeMonthsAgo, now)),
+        completedAt,
         rating: hasRating ? ratings[Math.floor(Math.random() * ratings.length)] : null,
         review: hasRating ? reviews[Math.floor(Math.random() * reviews.length)] : null
       });
     }
   });
   
-  const insert = dbs.travelHistoryDB.prepare(
-    'INSERT INTO TravelHistory (id, userId, scheduleId, completedAt, rating, review) VALUES (?, ?, ?, ?, ?, ?)'
-  );
-  dbs.travelHistoryDB.transaction(() => {
-    histories.forEach(history => {
-      insert.run(history.id, history.userId, history.scheduleId, history.completedAt, history.rating, history.review);
-    });
-  })();
+  const insertHistoryQuery = 'INSERT INTO "TravelHistory" (id, passengerId, scheduleId, completedAt, rating, review) VALUES ($1, $2, $3, $4, $5, $6)';
+  for (const history of histories) {
+    await dbs.travelHistoryDB.query(insertHistoryQuery, [history.id, history.passengerId, history.scheduleId, history.completedAt, history.rating, history.review]);
+  }
   
   console.log(`${histories.length} travel history entries created in travelHistoryDB`);
   return histories;
 }
 
 // Create refund requests
-function seedRefundRequests(bookings) {
+async function seedRefundRequests(bookings) {
   const refundRequests = [];
   const reasons = [
     "Change of plans", "Found a better option", "Emergency situation",
@@ -216,24 +194,20 @@ function seedRefundRequests(bookings) {
     }
   });
   
-  const insert = dbs.refundRequestDB.prepare(
-    'INSERT INTO RefundRequest (id, bookingId, reason, status, requestedAt, processedAt) VALUES (?, ?, ?, ?, ?, ?)'
-  );
-  dbs.refundRequestDB.transaction(() => {
-    refundRequests.forEach(request => {
-      insert.run(request.id, request.bookingId, request.reason, request.status, request.requestedAt, request.processedAt);
-    });
-  })();
+  const insertRefundQuery = 'INSERT INTO "RefundRequest" (id, bookingId, reason, status, requestedAt, processedAt) VALUES ($1, $2, $3, $4, $5, $6)';
+  for (const refund of refundRequests) {
+    await dbs.refundRequestDB.query(insertRefundQuery, [refund.id, refund.bookingId, refund.reason, refund.status, refund.requestedAt, refund.processedAt]);
+  }
   
   console.log(`${refundRequests.length} refund requests created in refundRequestDB`);
   return refundRequests;
 }
 
 // Create recommendations
-function seedRecommendations(users, schedules) { // Added schedules parameter
+async function seedRecommendations(passengers, schedules) {
   const recommendationsData = [];
   
-  users.forEach(user => {
+  passengers.forEach(passenger => {
     if (Math.random() > 0.5) {
       const now = new Date();
       const oneWeekAgo = new Date(now);
@@ -250,39 +224,33 @@ function seedRecommendations(users, schedules) { // Added schedules parameter
       
       recommendationsData.push({
         id: randomUUID(),
-        userId: user.id,
+        passengerId: passenger.id,
         recommendedSchedules: JSON.stringify(recommendedScheduleIds), // Store as JSON string
         generatedAt: formatDate(randomDate(oneWeekAgo, now))
       });
     }
   });
   
-  const insert = dbs.recommendationDB.prepare(
-    'INSERT INTO Recommendation (id, userId, recommendedSchedules, generatedAt) VALUES (?, ?, ?, ?)' // Added recommendedSchedules
-  );
-  dbs.recommendationDB.transaction(() => {
-    recommendationsData.forEach(rec => {
-      insert.run(rec.id, rec.userId, rec.recommendedSchedules, rec.generatedAt);
-    });
-  })();
+  const insertRecommendationQuery = 'INSERT INTO "Recommendation" (id, passengerId, recommendedSchedules, generatedAt) VALUES ($1, $2, $3, $4)';
+  for (const rec of recommendationsData) {
+    await dbs.recommendationDB.query(insertRecommendationQuery, [rec.id, rec.passengerId, rec.recommendedSchedules, rec.generatedAt]);
+  }
   
   console.log(`${recommendationsData.length} recommendations created in recommendationDB`);
   return recommendationsData;
 }
 
 // Run the seeder
-function seedDatabase() {
+async function seedDatabase() {
   console.log('Starting database seeding process...');
   try {
-    clearTables();
-    
-    const users = seedUsers();
-    const schedules = seedTravelSchedules(); // This now returns schedules
-    const bookings = seedBookings(users, schedules);
-    seedTravelHistory(users, schedules);
-    seedRefundRequests(bookings);
-    seedRecommendations(users, schedules); // Pass schedules to seedRecommendations
-    
+    await clearTables();
+    const passengers = await seedPassengers();
+    const schedules = await seedTravelSchedules();
+    const bookings = await seedBookings(passengers, schedules);
+    await seedTravelHistory(passengers, schedules);
+    await seedRefundRequests(bookings);
+    await seedRecommendations(passengers, schedules);
     console.log('Database seeded successfully!');
   } catch (error) {
     console.error('Error seeding database:', error);
