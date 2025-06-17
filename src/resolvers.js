@@ -43,11 +43,30 @@ const resolvers = {
 
     getRecommendations: async (_, { passengerId }) => {
       const { rows: schedules } = await dbs.travelScheduleDB.query('SELECT * FROM "TravelSchedule" ORDER BY RANDOM() LIMIT 3');
+      
+      // Map each schedule to match the GraphQL schema (convert snake_case to camelCase)
+      const mappedSchedules = schedules.map(schedule => ({
+        id: schedule.id,
+        origin: schedule.origin,
+        destination: schedule.destination,
+        departureTime: schedule.departuretime,
+        arrivalTime: schedule.arrivaltime,
+        price: schedule.price,
+        seatsAvailable: schedule.seatsavailable,
+        vehicleType: schedule.vehicletype
+      }));
+      
+      // Fetch the passenger to include in the response
+      const { rows: passengerRows } = await dbs.mainDB.query('SELECT * FROM "Passenger" WHERE id = $1', [passengerId]);
+      const passenger = passengerRows[0];
+      
       return {
         id: uuidv4(),
         passengerId: passengerId,
-        recommendedSchedules: schedules,
+        recommendedSchedules: mappedSchedules,
         generatedAt: new Date().toISOString(),
+        // Include the passenger object for the resolver to use
+        _passenger: passenger
       };
     },
 
@@ -86,7 +105,12 @@ const resolvers = {
 
     getAllRecommendations: async () => {
       const { rows } = await dbs.recommendationDB.query('SELECT * FROM "Recommendation"');
-      return rows;
+      return rows.map(row => ({
+        id: row.id,
+        passengerId: row.passengerid,
+        recommendedSchedules: row.recommendedschedules,
+        generatedAt: row.generatedat
+      }));
     },
   },
 
@@ -139,7 +163,18 @@ const resolvers = {
     },
     schedule: async (booking) => {
       const { rows } = await dbs.travelScheduleDB.query('SELECT * FROM "TravelSchedule" WHERE id = $1', [booking.scheduleId]);
-      return rows[0];
+      const row = rows[0];
+      if (!row) return null;
+      return {
+        id: row.id,
+        origin: row.origin,
+        destination: row.destination,
+        departureTime: row.departuretime,
+        arrivalTime: row.arrivaltime,
+        price: row.price,
+        seatsAvailable: row.seatsavailable,
+        vehicleType: row.vehicletype
+      };
     },
   },
 
@@ -150,7 +185,18 @@ const resolvers = {
     },
     schedule: async (history) => {
       const { rows } = await dbs.travelScheduleDB.query('SELECT * FROM "TravelSchedule" WHERE id = $1', [history.scheduleId]);
-      return rows[0];
+      const row = rows[0];
+      if (!row) return null;
+      return {
+        id: row.id,
+        origin: row.origin,
+        destination: row.destination,
+        departureTime: row.departuretime,
+        arrivalTime: row.arrivaltime,
+        price: row.price,
+        seatsAvailable: row.seatsavailable,
+        vehicleType: row.vehicletype
+      };
     },
   },
 
@@ -162,10 +208,31 @@ const resolvers = {
   },
 
   Recommendation: {
-    // Resolver for the 'passenger' field of a Recommendation object
-    passenger: async (rec) => {
-      const { rows } = await dbs.mainDB.query('SELECT * FROM "Passenger" WHERE id = $1', [rec.passengerId]);
-      return rows[0];
+    // Resolver for the 'passenger' field of a Recommendation
+    passenger: (rec) => {
+      // If _passenger is already loaded by the parent resolver, use it
+      if (rec._passenger) {
+        return {
+          id: rec._passenger.id,
+          name: rec._passenger.name,
+          email: rec._passenger.email
+        };
+      }
+      
+      // Otherwise, fetch from database (fallback)
+      return dbs.mainDB.query('SELECT * FROM "Passenger" WHERE id = $1', [rec.passengerId])
+        .then(({ rows }) => {
+          const passenger = rows[0];
+          if (!passenger) {
+            console.error(`No passenger found for Recommendation.passenger with passengerId: ${rec.passengerId}`);
+            throw new Error(`No passenger found with id ${rec.passengerId}`);
+          }
+          return {
+            id: passenger.id,
+            name: passenger.name,
+            email: passenger.email
+          };
+        });
     },
     // Resolver for the 'recommendedSchedules' field of a Recommendation object
     recommendedSchedules: async (rec) => {
@@ -183,7 +250,16 @@ const resolvers = {
         const stringScheduleIds = scheduleIds.map(id => String(id));
         const placeholders = stringScheduleIds.map((_, i) => `$${i + 1}`).join(',');
         const { rows } = await dbs.travelScheduleDB.query(`SELECT * FROM "TravelSchedule" WHERE id IN (${placeholders})`, stringScheduleIds);
-        return rows;
+        return rows.map(row => ({
+          id: row.id,
+          origin: row.origin,
+          destination: row.destination,
+          departureTime: row.departuretime,
+          arrivalTime: row.arrivaltime,
+          price: row.price,
+          seatsAvailable: row.seatsavailable,
+          vehicleType: row.vehicletype
+        }));
       } catch (e) {
         console.error(`Error parsing or fetching recommendedSchedules for Recommendation.id ${rec.id}: ${rec.recommendedSchedules}`, e);
         return [];

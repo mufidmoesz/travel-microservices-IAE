@@ -14,5 +14,9 @@ COPY . .
 # Expose the port your app runs on
 EXPOSE 4000
 
-# Start the application
-CMD ["npm", "start"]
+# Copy the start script
+COPY start.sh ./
+RUN chmod +x ./start.sh
+
+# Start the app with DB init and seeding
+CMD ["./start.sh"]
