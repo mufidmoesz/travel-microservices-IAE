@@ -5,17 +5,40 @@ const resolvers = {
   Query: {
     getAllSchedules: async () => {
       const { rows } = await dbs.travelScheduleDB.query('SELECT * FROM "TravelSchedule"');
-      return rows;
+      // Map to camelCase fields as required by GraphQL schema
+      return rows.map(row => ({
+        id: row.id,
+        origin: row.origin,
+        destination: row.destination,
+        departureTime: row.departuretime,
+        arrivalTime: row.arrivaltime,
+        price: row.price,
+        seatsAvailable: row.seatsavailable,
+        vehicleType: row.vehicletype
+      }));
     },
 
     getPassengerBookings: async (_, { passengerId }) => {
       const { rows } = await dbs.bookingDB.query('SELECT * FROM "Booking" WHERE passengerId = $1', [passengerId]);
-      return rows;
+      return rows.map(row => ({
+        id: row.id,
+        passengerId: row.passengerid,
+        scheduleId: row.scheduleid,
+        bookingTime: row.bookingtime,
+        status: row.status
+      }));
     },
 
     getPassengerHistory: async (_, { passengerId }) => {
       const { rows } = await dbs.travelHistoryDB.query('SELECT * FROM "TravelHistory" WHERE passengerId = $1', [passengerId]);
-      return rows;
+      return rows.map(row => ({
+        id: row.id,
+        passengerId: row.passengerid,
+        scheduleId: row.scheduleid,
+        completedAt: row.completedat,
+        rating: row.rating,
+        review: row.review
+      }));
     },
 
     getRecommendations: async (_, { passengerId }) => {
@@ -35,7 +58,13 @@ const resolvers = {
 
     getAllBookings: async () => {
       const { rows } = await dbs.bookingDB.query('SELECT * FROM "Booking"');
-      return rows;
+      return rows.map(row => ({
+        id: row.id,
+        passengerId: row.passengerid,
+        scheduleId: row.scheduleid,
+        bookingTime: row.bookingtime,
+        status: row.status
+      }));
     },
 
     getAllRefundRequests: async () => {
@@ -45,7 +74,14 @@ const resolvers = {
 
     getAllTravelHistories: async () => {
       const { rows } = await dbs.travelHistoryDB.query('SELECT * FROM "TravelHistory"');
-      return rows;
+      return rows.map(row => ({
+        id: row.id,
+        passengerId: row.passengerid,
+        scheduleId: row.scheduleid,
+        completedAt: row.completedat,
+        rating: row.rating,
+        review: row.review
+      }));
     },
 
     getAllRecommendations: async () => {

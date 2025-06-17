@@ -21,6 +21,11 @@ async function clearTables() {
 
 // Generate random dates
 function randomDate(start, end) {
+  if (!(start instanceof Date) || !(end instanceof Date) || isNaN(start) || isNaN(end) || end <= start) {
+    console.warn('Invalid date range for randomDate:', start, end);
+    // fallback: return current date
+    return new Date();
+  }
   return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
 }
 
@@ -71,8 +76,14 @@ async function seedTravelSchedules() {
   routes.forEach(route => {
     for (let i = 0; i < 3; i++) {
       const departureTime = randomDate(now, nextMonth);
+      if (!(departureTime instanceof Date) || isNaN(departureTime)) {
+        console.warn('Invalid departureTime generated:', departureTime);
+      }
       const arrivalTime = new Date(departureTime);
       arrivalTime.setHours(arrivalTime.getHours() + 2 + Math.floor(Math.random() * 4));
+      if (!(arrivalTime instanceof Date) || isNaN(arrivalTime)) {
+        console.warn('Invalid arrivalTime generated:', arrivalTime);
+      }
       
       const schedule = {
         id: randomUUID(),

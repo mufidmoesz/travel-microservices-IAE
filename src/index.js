@@ -21,6 +21,7 @@ const server = new ApolloServer({
     typeDefs,
     resolvers,
     introspection: true,
+    playground: true,
     plugins: [
         {
             async serverWillStart() {
@@ -38,7 +39,10 @@ await server.start();
 
 app.use(
     '/graphql',
-    cors(),
+    cors({
+        origin: ['https://studio.apollographql.com', 'http://localhost:4000'],
+        credentials: true,
+    }),
     express.json(),
     expressMiddleware(server, {
         context: async ({ req }) => ({ token: req.headers.token }),
