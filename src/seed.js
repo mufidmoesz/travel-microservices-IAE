@@ -37,11 +37,11 @@ function formatDate(date) {
 // Create passengers
 async function seedPassengers() {
   const passengers = [
-    { id: randomUUID(), name: 'John Doe', email: 'john@example.com' },
-    { id: randomUUID(), name: 'Jane Smith', email: 'jane@example.com' },
-    { id: randomUUID(), name: 'Bob Johnson', email: 'bob@example.com' },
-    { id: randomUUID(), name: 'Alice Brown', email: 'alice@example.com' },
-    { id: randomUUID(), name: 'Charlie Wilson', email: 'charlie@example.com' }
+    { id: 1, name: 'John Doe', email: 'john@example.com' },
+    { id: 2, name: 'Jane Smith', email: 'jane@example.com' },
+    { id: 3, name: 'Bob Johnson', email: 'bob@example.com' },
+    { id: 4, name: 'Alice Brown', email: 'alice@example.com' },
+    { id: 5, name: 'Charlie Wilson', email: 'charlie@example.com' }
   ];
 
   const insertPassengerQuery = 'INSERT INTO "Passenger" (id, name, email) VALUES ($1, $2, $3)';
@@ -73,6 +73,8 @@ async function seedTravelSchedules() {
   
   const schedules = [];
   
+  let scheduleId = 1;
+  
   routes.forEach(route => {
     for (let i = 0; i < 3; i++) {
       const departureTime = randomDate(now, nextMonth);
@@ -86,7 +88,7 @@ async function seedTravelSchedules() {
       }
       
       const schedule = {
-        id: randomUUID(),
+        id: scheduleId++,
         origin: route.origin,
         destination: route.destination,
         departureTime: formatDate(departureTime),
@@ -113,6 +115,8 @@ async function seedBookings(passengers, schedules) {
   const bookings = [];
   const statuses = ['CONFIRMED', 'CANCELLED', 'REFUNDED'];
   
+  let bookingId = 1;
+  
   passengers.forEach(passenger => {
     const bookingCount = 1 + Math.floor(Math.random() * 3);
     for (let i = 0; i < bookingCount; i++) {
@@ -121,7 +125,7 @@ async function seedBookings(passengers, schedules) {
       const oneMonthAgo = new Date(now);
       oneMonthAgo.setMonth(now.getMonth() - 1);
       bookings.push({
-        id: randomUUID(),
+        id: bookingId++,
         passengerId: passenger.id,
         scheduleId: schedule.id,
         bookingTime: formatDate(randomDate(oneMonthAgo, now)),
@@ -149,6 +153,8 @@ async function seedTravelHistory(passengers, schedules) {
     "Very clean vehicle and friendly driver.", null
   ];
   
+  let historyId = 1;
+  
   passengers.forEach(passenger => {
     const historyCount = Math.floor(Math.random() * 3);
     for (let i = 0; i < historyCount; i++) {
@@ -159,7 +165,7 @@ async function seedTravelHistory(passengers, schedules) {
       const completedAt = formatDate(randomDate(threeMonthsAgo, now));
       const hasRating = Math.random() > 0.3;
       histories.push({
-        id: randomUUID(),
+        id: historyId++,
         passengerId: passenger.id,
         scheduleId: schedule.id,
         completedAt,
@@ -187,6 +193,8 @@ async function seedRefundRequests(bookings) {
   ];
   const eligibleBookings = bookings.filter(b => b.status === 'CANCELLED' || b.status === 'REFUNDED');
   
+  let refundRequestId = 1;
+  
   eligibleBookings.forEach(booking => {
     if (Math.random() > 0.3) {
       const now = new Date();
@@ -195,7 +203,7 @@ async function seedRefundRequests(bookings) {
       const requestedAt = randomDate(oneMonthAgo, now);
       const processedAt = Math.random() > 0.5 ? randomDate(requestedAt, now) : null;
       refundRequests.push({
-        id: randomUUID(),
+        id: refundRequestId++,
         bookingId: booking.id,
         reason: reasons[Math.floor(Math.random() * reasons.length)],
         status: processedAt ? (Math.random() > 0.7 ? 'APPROVED' : 'REJECTED') : 'PENDING',
@@ -218,6 +226,8 @@ async function seedRefundRequests(bookings) {
 async function seedRecommendations(passengers, schedules) {
   const recommendationsData = [];
   
+  let recommendationId = 1;
+  
   passengers.forEach(passenger => {
     if (Math.random() > 0.5) {
       const now = new Date();
@@ -234,7 +244,7 @@ async function seedRecommendations(passengers, schedules) {
       }
       
       recommendationsData.push({
-        id: randomUUID(),
+        id: recommendationId++,
         passengerId: passenger.id,
         recommendedSchedules: JSON.stringify(recommendedScheduleIds), // Store as JSON string
         generatedAt: formatDate(randomDate(oneWeekAgo, now))
@@ -271,4 +281,3 @@ async function seedDatabase() {
 
 // Execute the seeder
 seedDatabase();
-

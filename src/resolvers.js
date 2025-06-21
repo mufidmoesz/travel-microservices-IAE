@@ -60,8 +60,12 @@ const resolvers = {
       const { rows: passengerRows } = await dbs.mainDB.query('SELECT * FROM "Passenger" WHERE id = $1', [passengerId]);
       const passenger = passengerRows[0];
       
+      // Get next recommendation ID
+      const { rows: maxIdRows } = await dbs.recommendationDB.query('SELECT MAX(id) as max_id FROM "Recommendation"');
+      const nextId = (maxIdRows[0].max_id || 0) + 1;
+      
       return {
-        id: uuidv4(),
+        id: nextId,
         passengerId: passengerId,
         recommendedSchedules: mappedSchedules,
         generatedAt: new Date().toISOString(),
@@ -116,34 +120,55 @@ const resolvers = {
 
   Mutation: {
     createBooking: async (_, { passengerId, scheduleId }) => {
-      const id = uuidv4();
-      const bookingTime = new Date().toISOString();
-      const status = 'CONFIRMED';
-      await dbs.bookingDB.query(
-        'INSERT INTO "Booking" (id, passengerId, scheduleId, bookingTime, status) VALUES ($1, $2, $3, $4, $5)',
-        [id, passengerId, scheduleId, bookingTime, status]
+      // Get next booking ID
+      const { rows: maxIdRows } = await dbs.bookingDB.query('SELECT MAX(id) as max_id FROM "Booking"');
+      const nextId = (maxIdRows[0].max_id || 0) + 1;
+      
+      const { rows } = await dbs.bookingDB.query(
+        'INSERT INTO "Booking" (id, passengerId, scheduleId, bookingTime, status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [nextId, passengerId, scheduleId, new Date().toISOString(), 'CONFIRMED']
       );
-      return { id, passengerId, scheduleId, bookingTime, status };
+      if (!rows || rows.length === 0) {
+        throw new Error('Failed to create booking');
+      }
+      const row = rows[0];
+      return {
+        id: row.id,
+        passengerId: row.passengerid,
+        scheduleId: row.scheduleid,
+        bookingTime: row.bookingtime,
+        status: row.status
+      };
     },
 
     cancelBooking: async (_, { bookingId }) => {
       await dbs.bookingDB.query('UPDATE "Booking" SET status = $1 WHERE id = $2', ['CANCELLED', bookingId]);
       const { rows } = await dbs.bookingDB.query('SELECT * FROM "Booking" WHERE id = $1', [bookingId]);
-      return rows[0];
+      return rows.map(row => ({
+        id: row.id,
+        passengerId: row.passengerid,
+        scheduleId: row.scheduleid,
+        bookingTime: row.bookingtime,
+        status: row.status
+      }));
     },
 
     requestRefund: async (_, { bookingId, reason }) => {
-      const id = uuidv4();
-      const requestedAt = new Date().toISOString();
-      const status = 'PENDING';
-
-      await dbs.refundRequestDB.query(
-        'INSERT INTO "RefundRequest" (id, bookingId, reason, status, requestedAt) VALUES ($1, $2, $3, $4, $5)',
-        [id, bookingId, reason, status, requestedAt]
+      // Get next refund request ID
+      const { rows: maxIdRows } = await dbs.refundRequestDB.query('SELECT MAX(id) as max_id FROM "RefundRequest"');
+      const nextId = (maxIdRows[0].max_id || 0) + 1;
+      
+      const { rows } = await dbs.refundRequestDB.query(
+        'INSERT INTO "RefundRequest" (id, bookingId, reason, status, requestedAt) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [nextId, bookingId, reason, 'PENDING', new Date().toISOString()]
       );
-
-      // Return structure that RefundRequest type resolvers can use
-      return { id, bookingId, reason, status, requestedAt };
+      return rows.map(row => ({
+        id: row.id,
+        bookingId: row.bookingid,
+        reason: row.reason,
+        status: row.status,
+        requestedAt: row.requestedat
+      }));
     },
 
     rateTravel: async (_, { historyId, rating, review }) => {
@@ -152,19 +177,36 @@ const resolvers = {
         [rating, review, historyId]
       );
       const { rows } = await dbs.travelHistoryDB.query('SELECT * FROM "TravelHistory" WHERE id = $1', [historyId]);
-      return rows[0];
+      return rows.map(row => ({
+        id: row.id,
+        passengerId: row.passengerid,
+        scheduleId: row.scheduleid,
+        completedAt: row.completedat,
+        rating: row.rating,
+        review: row.review
+      }));
     },
   },
 
   Booking: {
     passenger: async (booking) => {
       const { rows } = await dbs.mainDB.query('SELECT * FROM "Passenger" WHERE id = $1', [booking.passengerId]);
-      return rows[0];
+      if (!rows || rows.length === 0) {
+        throw new Error(`Passenger with ID ${booking.passengerId} not found`);
+      }
+      const row = rows[0];
+      return {
+        id: row.id,
+        name: row.name,
+        email: row.email
+      };
     },
     schedule: async (booking) => {
       const { rows } = await dbs.travelScheduleDB.query('SELECT * FROM "TravelSchedule" WHERE id = $1', [booking.scheduleId]);
+      if (!rows || rows.length === 0) {
+        throw new Error(`Schedule with ID ${booking.scheduleId} not found`);
+      }
       const row = rows[0];
-      if (!row) return null;
       return {
         id: row.id,
         origin: row.origin,
@@ -181,12 +223,22 @@ const resolvers = {
   TravelHistory: {
     passenger: async (history) => {
       const { rows } = await dbs.mainDB.query('SELECT * FROM "Passenger" WHERE id = $1', [history.passengerId]);
-      return rows[0];
+      if (!rows || rows.length === 0) {
+        throw new Error(`Passenger with ID ${history.passengerId} not found`);
+      }
+      const row = rows[0];
+      return {
+        id: row.id,
+        name: row.name,
+        email: row.email
+      };
     },
     schedule: async (history) => {
       const { rows } = await dbs.travelScheduleDB.query('SELECT * FROM "TravelSchedule" WHERE id = $1', [history.scheduleId]);
+      if (!rows || rows.length === 0) {
+        throw new Error(`Schedule with ID ${history.scheduleId} not found`);
+      }
       const row = rows[0];
-      if (!row) return null;
       return {
         id: row.id,
         origin: row.origin,
@@ -203,7 +255,17 @@ const resolvers = {
   RefundRequest: {
     booking: async (refund) => {
       const { rows } = await dbs.bookingDB.query('SELECT * FROM "Booking" WHERE id = $1', [refund.bookingId]);
-      return rows[0];
+      if (!rows || rows.length === 0) {
+        throw new Error(`Booking with ID ${refund.bookingId} not found`);
+      }
+      const row = rows[0];
+      return {
+        id: row.id,
+        passengerId: row.passengerid,
+        scheduleId: row.scheduleid,
+        bookingTime: row.bookingtime,
+        status: row.status
+      };
     },
   },
 
@@ -222,16 +284,16 @@ const resolvers = {
       // Otherwise, fetch from database (fallback)
       return dbs.mainDB.query('SELECT * FROM "Passenger" WHERE id = $1', [rec.passengerId])
         .then(({ rows }) => {
-          const passenger = rows[0];
+          const passenger = rows.map(row => ({
+            id: row.id,
+            name: row.name,
+            email: row.email
+          }));
           if (!passenger) {
             console.error(`No passenger found for Recommendation.passenger with passengerId: ${rec.passengerId}`);
             throw new Error(`No passenger found with id ${rec.passengerId}`);
           }
-          return {
-            id: passenger.id,
-            name: passenger.name,
-            email: passenger.email
-          };
+          return passenger;
         });
     },
     // Resolver for the 'recommendedSchedules' field of a Recommendation object
